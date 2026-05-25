@@ -111,7 +111,7 @@ app = (component emptyModel updateModel viewModel)
 #endif
   }
 ----------------------------------------------------------------------------
-updateModel :: Msg -> Effect parent Model Msg
+updateModel :: Msg -> Effect parent props Model Msg
 updateModel = \case
   NoOp ->
     pure ()
@@ -147,8 +147,8 @@ updateModel = \case
   ChangeVisibility v ->
     visibility .= v
 ----------------------------------------------------------------------------
-viewModel :: Model -> View model Msg
-viewModel m =
+viewModel :: props -> Model -> View model Msg
+viewModel _ = \m ->
     div_
         [ class_ "todomvc-wrapper"
         ]
