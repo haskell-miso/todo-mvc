@@ -20,15 +20,15 @@
           },
           {
             "name": "GitHub",
-            "url": "https://github.com/haskell-miso/miso"
+            "url": "https://github.com/haskell-miso"
           },
           {
             "name": "Hackage",
             "url": "https://hackage.haskell.org/package/miso"
           },
           {
-            "name": "Changelog",
-            "url": "https://github.com/haskell-miso/miso/blob/master/CHANGELOG.md"
+            "name": "Haddocks",
+            "url": "https://haddocks.haskell-miso.org"
           }
         ]
       },

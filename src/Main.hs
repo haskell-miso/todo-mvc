@@ -7,6 +7,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Miso
@@ -20,21 +21,30 @@ module Main where
 ----------------------------------------------------------------------------
 import           Control.Category ((.))
 import           Control.Monad
+import           Control.Monad.State.Class (get)
 import qualified Data.IntMap as IM
 import           Data.IntMap (IntMap)
 import           Data.Bool
+import           Data.Char (isSpace)
+import           Data.List (dropWhileEnd)
 import           GHC.Generics
 import           Prelude hiding ((.))
 ----------------------------------------------------------------------------
 import           Miso hiding (at)
 import           Miso.Html
+import           Miso.JSON (ToJSON(..), FromJSON(..), encode, decode)
 import           Miso.Lens
 import           Miso.Lens.TH
 import           Miso.Html.Property hiding (label_)
 import qualified Miso.String as S
-import qualified Miso.CSS as CSS
 ----------------------------------------------------------------------------
 default (MisoString)
+----------------------------------------------------------------------------
+instance ToJSON v => ToJSON (IM.IntMap v) where
+  toJSON = toJSON . IM.toAscList
+
+instance FromJSON v => FromJSON (IM.IntMap v) where
+  parseJSON v = IM.fromList <$> parseJSON v
 ----------------------------------------------------------------------------
 data Model
   = Model
@@ -44,6 +54,7 @@ data Model
   , _visibility :: MisoString
   , _step :: Bool
   } deriving stock (Show, Generic, Eq)
+    deriving anyclass (ToJSON, FromJSON)
 ----------------------------------------------------------------------------
 data Entry
   = Entry
@@ -51,7 +62,9 @@ data Entry
   , _completed :: Bool
   , _editing :: Bool
   , _focussed :: Bool
+  , _original :: MisoString
   } deriving stock (Show, Generic, Eq)
+    deriving anyclass (ToJSON, FromJSON)
 ----------------------------------------------------------------------------
 $(makeLenses ''Entry)
 $(makeLenses ''Model)
@@ -66,6 +79,9 @@ emptyModel
   , _step = False
   }
 ----------------------------------------------------------------------------
+trimMS :: MisoString -> MisoString
+trimMS = S.pack . dropWhileEnd isSpace . dropWhile isSpace . S.unpack
+
 newEntry :: MisoString -> Entry
 newEntry desc
   = Entry
@@ -73,6 +89,7 @@ newEntry desc
   , _completed = False
   , _editing = False
   , _focussed = False
+  , _original = desc
   }
 ----------------------------------------------------------------------------
 data Msg
@@ -81,6 +98,8 @@ data Msg
   | UpdateField MisoString
   | EditingEntry Int Bool
   | UpdateEntry Int MisoString
+  | SaveEdit Int
+  | CancelEdit Int
   | Add
   | Delete Int
   | DeleteComplete
@@ -97,10 +116,13 @@ foreign export javascript "hs_start" main :: IO ()
 #endif
 ----------------------------------------------------------------------------
 main :: IO ()
-main = startApp (defaultEvents <> keyboardEvents) app
+main = do
+    stored <- getLocalStorage "todos-miso"
+    let initialModel = maybe emptyModel id (stored >>= decode)
+    startApp (defaultEvents <> keyboardEvents) (app initialModel)
 ----------------------------------------------------------------------------
-app :: App Model Msg
-app = (component emptyModel updateModel viewModel)
+app :: Model -> App Model Msg
+app initialModel = (component initialModel updateModel viewModel)
   { mount = Just FocusOnInput
 #ifdef INTERACTIVE
   -- dmj: when using WASM repl mode append styles to <head> in dev mode
@@ -111,6 +133,9 @@ app = (component emptyModel updateModel viewModel)
 #endif
   }
 ----------------------------------------------------------------------------
+save :: Effect parent props Model Msg
+save = get >>= \m -> io_ (setLocalStorage "todos-miso" (encode m))
+----------------------------------------------------------------------------
 updateModel :: Msg -> Effect parent props Model Msg
 updateModel = \case
   NoOp ->
@@ -120,35 +145,57 @@ updateModel = \case
   CurrentTime time ->
     io_ $ consoleLog (S.ms time)
   Add -> do
-    value <- use field
+    value <- trimMS <$> use field
     unless (S.null value) $ do
       field .= mempty
       uid += 1
       nextId <- use uid
       entries %= IM.insert nextId (newEntry value)
+      save
   UpdateField str -> do
     field .= str
   EditingEntry idx isEditing -> do
     entries . at idx %?= (\e ->
       e & editing .~ isEditing
-        & focussed .~ isEditing)
+        & focussed .~ isEditing
+        & (if isEditing then original .~ (e ^. description) else id))
     when isEditing $ io_ (focus ("todo-" <> S.ms idx))
   UpdateEntry idx task ->
     entries . at idx %?= do
       description .~ task
-  Delete idx ->
+  SaveEdit idx -> do
+    entry <- use (entries . at idx)
+    case entry of
+      Nothing -> pure ()
+      Just e -> do
+        let desc = trimMS (e ^. description)
+        if S.null desc
+          then entries . at idx .= Nothing
+          else entries . at idx %?= (\e -> e & description .~ desc & editing .~ False & focussed .~ False)
+        save
+  CancelEdit idx ->
+    entries . at idx %?= (\e ->
+      e & description .~ (e ^. original)
+        & editing .~ False
+        & focussed .~ False)
+  Delete idx -> do
     entries . at idx .= Nothing
-  DeleteComplete ->
+    save
+  DeleteComplete -> do
     entries %= IM.filter (\entry -> not (entry ^. completed))
-  Check idx isCompleted ->
+    save
+  Check idx isCompleted -> do
     entries . at idx %?= do completed .~ isCompleted
-  CheckAll isCompleted ->
+    save
+  CheckAll isCompleted -> do
     entries %= IM.map (\entry -> entry & completed .~ isCompleted)
-  ChangeVisibility v ->
+    save
+  ChangeVisibility v -> do
     visibility .= v
+    save
 ----------------------------------------------------------------------------
 viewModel :: props -> Model -> View model Msg
-viewModel _ = \m ->
+viewModel _ m =
     div_
         [ class_ "todomvc-wrapper"
         ]
@@ -165,7 +212,7 @@ viewEntries :: MisoString -> [(Int, Entry)] -> View model Msg
 viewEntries visibility entries =
     section_
         [ class_ "main"
-        , CSS.style_ [ CSS.visibility cssVisibility ]
+        , hidden_ (null entries)
         ]
         [ input_
             [ class_ "toggle-all"
@@ -182,7 +229,6 @@ viewEntries visibility entries =
             filter isVisible entries <&> viewEntry
         ]
   where
-    cssVisibility = bool "visible" "hidden" (null entries)
     allCompleted = all _completed (snd <$> entries)
     isVisible (_, Entry {..}) =
         case visibility of
@@ -221,8 +267,11 @@ viewEntry (eid, Entry{..}) =
             , name_ "title"
             , id_ ("todo-" <> S.ms eid)
             , onInput (UpdateEntry eid)
-            , onBlur (EditingEntry eid False)
-            , onEnter NoOp (EditingEntry eid False)
+            , onBlur (SaveEdit eid)
+            , onKeyDown $ \code -> case code of
+                13 -> SaveEdit eid
+                27 -> CancelEdit eid
+                _  -> NoOp
             ]
         ]
 ----------------------------------------------------------------------------
