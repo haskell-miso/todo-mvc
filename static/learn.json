@@ -1,7 +1,7 @@
 {
   "miso": {
     "name": "miso",
-    "description": "miso is a Haskell library for building web and mobile applications. Inspired by both Elm and React.",
+    "description": "miso is a library for building web and mobile applications. Inspired by both Elm and React.",
     "homepage": "haskell-miso.org",
     "examples": [
       {
@@ -23,11 +23,7 @@
             "url": "https://github.com/haskell-miso"
           },
           {
-            "name": "Hackage",
-            "url": "https://hackage.haskell.org/package/miso"
-          },
-          {
-            "name": "Haddocks",
+            "name": "Docs",
             "url": "https://haddocks.haskell-miso.org/miso/Miso.html"
           }
         ]
