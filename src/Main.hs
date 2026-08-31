@@ -208,7 +208,7 @@ viewModel _ _ m =
         , infoFooter
         ]
 ----------------------------------------------------------------------------
-viewEntries :: MisoString -> [(Int, Entry)] -> View model Msg
+viewEntries :: MisoString -> [(Int, Entry)] -> View context model Msg
 viewEntries visibility entries =
     section_
         [ class_ "main"
@@ -236,7 +236,7 @@ viewEntries visibility entries =
             "Active" -> not _completed
             _ -> True
 ----------------------------------------------------------------------------
-viewEntry :: (Int, Entry) -> View model Msg
+viewEntry :: (Int, Entry) -> View context model Msg
 viewEntry (eid, Entry{..}) =
     li_
         [ class_ $
