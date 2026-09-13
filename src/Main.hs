@@ -194,8 +194,8 @@ updateModel = \case
     visibility .= v
     save
 ----------------------------------------------------------------------------
-viewModel :: context -> props -> Model -> View context model Msg
-viewModel _ _ m =
+viewModel :: Model -> View context props model Msg
+viewModel m =
     div_
         [ class_ "todomvc-wrapper"
         ]
@@ -208,7 +208,7 @@ viewModel _ _ m =
         , infoFooter
         ]
 ----------------------------------------------------------------------------
-viewEntries :: MisoString -> [(Int, Entry)] -> View context model Msg
+viewEntries :: MisoString -> [(Int, Entry)] -> View context props model Msg
 viewEntries visibility entries =
     section_
         [ class_ "main"
@@ -236,7 +236,7 @@ viewEntries visibility entries =
             "Active" -> not _completed
             _ -> True
 ----------------------------------------------------------------------------
-viewEntry :: (Int, Entry) -> View context model Msg
+viewEntry :: (Int, Entry) -> View context props model Msg
 viewEntry (eid, Entry{..}) =
     li_
         [ class_ $
@@ -275,7 +275,7 @@ viewEntry (eid, Entry{..}) =
             ]
         ]
 ----------------------------------------------------------------------------
-viewControls :: Model -> MisoString -> [(Int,Entry)] -> View context model Msg
+viewControls :: Model -> MisoString -> [(Int,Entry)] -> View context props model Msg
 viewControls model visibility entries =
     footer_
         [ class_ "footer"
@@ -289,7 +289,7 @@ viewControls model visibility entries =
     entriesCompleted = length . filter (_completed . snd) $ entries
     entriesLeft = length entries - entriesCompleted
 ----------------------------------------------------------------------------
-viewControlsCount :: Int -> View context model Msg
+viewControlsCount :: Int -> View context props model Msg
 viewControlsCount entriesLeft =
     span_
         [class_ "todo-count"]
@@ -299,7 +299,7 @@ viewControlsCount entriesLeft =
   where
     item_ = S.pack $ bool " items" " item" (entriesLeft == 1)
 ----------------------------------------------------------------------------
-viewControlsFilters :: MisoString -> View context model Msg
+viewControlsFilters :: MisoString -> View context props model Msg
 viewControlsFilters visibility =
     ul_
         [class_ "filters"]
@@ -310,7 +310,7 @@ viewControlsFilters visibility =
         , visibilitySwap "#/completed" "Completed" visibility
         ]
 ----------------------------------------------------------------------------
-visibilitySwap :: MisoString -> MisoString -> MisoString -> View context model Msg
+visibilitySwap :: MisoString -> MisoString -> MisoString -> View context props model Msg
 visibilitySwap uri visibility actualVisibility =
     li_
         []
@@ -322,7 +322,7 @@ visibilitySwap uri visibility actualVisibility =
             [text visibility]
         ]
 ----------------------------------------------------------------------------
-viewControlsClear :: Model -> Int -> View context model Msg
+viewControlsClear :: Model -> Int -> View context props model Msg
 viewControlsClear _ entriesCompleted =
     button_
         [ class_ "clear-completed"
@@ -331,7 +331,7 @@ viewControlsClear _ entriesCompleted =
         ]
         [text $ "Clear completed (" <> S.ms entriesCompleted <> ")"]
 ----------------------------------------------------------------------------
-viewInput :: Model -> MisoString -> View context model Msg
+viewInput :: Model -> MisoString -> View context props model Msg
 viewInput _ task =
     header_
         [class_ "header"]
@@ -348,7 +348,7 @@ viewInput _ task =
             ]
         ]
 ----------------------------------------------------------------------------
-infoFooter :: View context model Msg
+infoFooter :: View context props model Msg
 infoFooter =
     footer_
         [class_ "info"]
